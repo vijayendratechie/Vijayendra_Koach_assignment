@@ -150,7 +150,7 @@ db.connect(function(err)
 	}
 	else
 	{
-		console.log("database connection established");
+		console.log("database connection established successfully");
 	}
 })
 
@@ -821,7 +821,7 @@ var tempdata;
 
 	socket.on("username",function(username)
 	{
-		
+		console.log("name of user connected",username);
 		/*if(onlineusers.indexOf(username) == -1)
 		{
 			console.log("adding user to onlineusers array");
@@ -834,7 +834,7 @@ var tempdata;
 
 	function sendlistofonlineusers()
 	{
-		//console.log(onlineusers);
+		console.log("==hello: ",onlineusers);
 		io.sockets.emit("onlineusers",Object.keys(onlineusers));
 	}
 
