@@ -12,7 +12,7 @@ $(document).ready(function()
 			var email = $("#email").val();
 			$.ajax({
 	        type: "POST",
-	        url: "https://testchaatapp.herokuapp.com/checkotp",
+	        url: "http://localhost:3000/checkotp",
 	        data: {otp : OTP, email : email},
 	        dataType: "json",
 	        success: function (data)

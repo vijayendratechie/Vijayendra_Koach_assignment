@@ -30,21 +30,20 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine","ejs");
 
 //This creates a Session table in database to store established user session
-/*var options = {
+var options = {
 	host : 'localhost',
 	user : 'root',
-	password : '',
-	database : 'chat_application'
+	password : 'Vijju@005',
+	database : 'customerChat'
 };
-*/
 
 /* For crearting sessions table in db to store user sessions */
-var options = {
+/*var options = {
 	host : 'us-cdbr-iron-east-02.cleardb.net',
 	user : 'b1681473ab0ff1',
 	password : '7f57f3dc',
 	database : 'heroku_6b41e1e0702fd4d'
-};
+};*/
 
 var mySessionStore = new mySqlStore(options);
 
@@ -125,26 +124,25 @@ passport.use(new localStrategy({
 
 // Db connection
 
-/*var db = mysql.createConnection(
+var db = mysql.createConnection(
 {
 	host : 'localhost',
 	user : 'root',
-	password : '',
-	database : 'chat_application',
+	password : 'Vijju@005',
+	database : 'customerChat',
 	multipleStatements: true
 });
-*/
 
-var db_config = {
+/*var db_config = {
 	host : 'us-cdbr-iron-east-02.cleardb.net',
 	user : 'b1681473ab0ff1',
 	password : '7f57f3dc',
 	database : 'heroku_6b41e1e0702fd4d',
 	multipleStatements: true
-}
+}*/
 
 
-/*db.connect(function(err)
+db.connect(function(err)
 {
 	if(err)
 	{
@@ -154,9 +152,9 @@ var db_config = {
 	{
 		console.log("database connection established");
 	}
-})*/
+})
 
-var db;
+/*var db;
 
 function handleDisconnect() {
   db = mysql.createConnection(db_config); // Recreate the connection, since
@@ -183,7 +181,7 @@ function handleDisconnect() {
   });
 }
 
-handleDisconnect();
+handleDisconnect();*/
 
 
 app.get("/logout",authenticationMiddleware(),function(req,res)
@@ -199,6 +197,51 @@ app.get("/",function(req,res)
 		res.render("login",{message : false});
 		//res.sendFile(__dirname + "/HS.html");
 });
+
+app.get("/home/admin",admincheck(),function(req,res)
+{
+	db.query("Select * FROM users",function(err,result)
+	{
+		if(err)
+		{
+			console.log("Error retreiving all users from db : "+err);
+		}
+		else
+		{
+			res.json(result);			
+		}
+	})
+})
+
+function admincheck(req,res,next)
+{
+	return (req,res,next) => 
+	{
+		var id = req.user.user_id;
+		//db.query("SELECT `email` FROM users WHERE id=?",[id],function(err,result)
+		db.query("SELECT `email` FROM users WHERE id=?",[id],function(err,result)
+		{
+			if(err)
+			{
+				console.log("Error while retreiving email of admin : "+err);
+			}
+			else
+			{
+				console.log("email id : "+ JSON.stringify(result[0].email));
+				if(result[0].email == "vijayendrapagare05@gmail.com")
+				{
+					console.log("in if");
+					return next();
+				}
+				else
+				{
+					console.log("in else");
+					res.redirect("/");			
+				}
+			}
+		})		
+	}	
+}
 
 
 app.get("/login",function(req,res) 
@@ -977,7 +1020,7 @@ function sendmail(user_id,flag,OTP,email)
 		  to: email,
 		  subject: 'Confirm your mail id',
 		  //text: 'http://localhost:3000/confirmemail?user_id='+id
-		  html : '<a href="https://testchaatapp.herokuapp.com/confirmemail?user_id='+id+'" return false;>Click me</a>'
+		  html : '<a href="http://localhost:3000/confirmemail?user_id='+id+'" return false;>Click me</a>'
 		  //html : '<!DOCTYPE html><html><body><a onclick="myWindow()" href="http://localhost:3000/confirmemail?user_id=102" >click here</a><button type="button" onclick="window.close()">close</button><script>function myWindow(){ alert("closing window"); myWindow.close();}</script></body</html>'
 		  //href="http://localhost:3000/confirmemail?user_id='+id+'"
 		};	
