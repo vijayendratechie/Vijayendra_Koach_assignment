@@ -4,6 +4,31 @@ var fs = require("fs");
 var path = require("path");
 var bodyparser = require("body-parser");
 var socket = require("socket.io");
+const multer = require('multer');
+
+const storage = multer.diskStorage({
+	destination: function(req, file, cb) {
+		cb(null,'./uploads/')
+	},
+	filename: function(req, file, cb) {
+		cb(null, new Date().toISOString()+file.originalname)
+	}
+})
+
+const fileFilter = function(req, file, cb) {
+	if(file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg') {
+		cb(null, true)
+	} else {
+		cb(JSON.stringify({message: "File Type not supported"}), false)
+	}
+}
+const upload = multer({
+	storage: storage,
+	limits: {
+		fileSize: 1024 * 1024 * 5 // 5Mb 
+	},
+	fileFilter: fileFilter
+});
 
 
 var session = require("express-session");
@@ -49,7 +74,7 @@ var mySessionStore = new mySqlStore(options);
 
 app.use(bodyparser());
 app.use(express.static(path.join(__dirname,"static")));
-
+app.use('/uploads', express.static('uploads'));
 
 
 app.use(session({
@@ -567,7 +592,7 @@ app.get("/profile",authenticationMiddleware(),function(req,res)
 {		
 	var id = req.user.user_id;
 	
-	var query = "SELECT username,name,email FROM users WHERE id = ?";
+	var query = "SELECT u.id, u.username, u.name, u.email, u.userImageRef, p.productId, p.productName FROM users as u, userProductAssoc as up, products as p WHERE u.id = up.userId and p.productId = up.productId and id = ?";
 	db.query(query, [id],function(err,result)
 	{
 		if(err)
@@ -576,8 +601,21 @@ app.get("/profile",authenticationMiddleware(),function(req,res)
 		}
 		else
 		{
-			console.log("result1 is : "+JSON.stringify(result));
-			res.render("profile",{info : result[0]});
+			let userObj = {
+				userId: result[0].id,
+				username: result[0].username,
+				name: result[0].name,
+				email: result[0].email,
+				userImageRef: result[0].userImageRef
+			}
+			let userProducts = result.map(record => {
+				return {
+					productId: record['productId'],
+					productName: record['productName']
+				}
+			})
+			userObj['products'] = userProducts;
+			res.render("profile",{info : userObj});
 		}
 	});	
 	
@@ -585,12 +623,25 @@ app.get("/profile",authenticationMiddleware(),function(req,res)
 })
 
 
-app.post("/profile",authenticationMiddleware(),function(req,res)
-{
+app.post("/profile",authenticationMiddleware(),upload.single('userImage'),function(req,res)
+{	
 	var id = req.user.user_id;
 	var username = req.body.username;
-	
-	db.query("UPDATE users SET username=? WHERE id= ?",[username,id],function(err,result)
+	var name = req.body.name;
+	var email = req.body.email;
+	var userImage = (req.file && req.file.path) ? req.file.path : undefined;
+	var products = req.body.products
+	/**
+	 * products is an array of products modified
+	 * products = [
+	 * 	{
+	 * 		productId: product1Id,
+	 * 		operation: added/removed
+	 * 	}
+	 * ]
+	 * Add/Remove rows from userProductAssoc
+	 */
+	db.query("UPDATE users SET username=?, userImageRef=?, name=?, email=? WHERE id= ?",[username, userImage, name, email, id],function(err,result)
 	{
 		if(err)
 		{
@@ -598,7 +649,32 @@ app.post("/profile",authenticationMiddleware(),function(req,res)
 		}
 		else
 		{
-			res.redirect("/home");
+			var query = "SELECT u.id, u.username, u.name, u.email, u.userImageRef, p.productId, p.productName FROM users as u, userProductAssoc as up, products as p WHERE u.id = up.userId and p.productId = up.productId and id = ?";
+			db.query(query, [id],function(err,result)
+			{
+				if(err)
+				{
+					console.log("\n Error while retreiving user profile info " + err);
+				}
+				else
+				{
+					let userObj = {
+						userId: result[0].id,
+						username: result[0].username,
+						name: result[0].name,
+						email: result[0].email,
+						userImageRef: result[0].userImageRef
+					}
+					let userProducts = result.map(record => {
+						return {
+							productId: record['productId'],
+							productName: record['productName']
+						}
+					})
+					userObj['products'] = userProducts;
+					res.render("profile",{info : userObj});
+				}
+			});			
 		}
 	});
 });
@@ -625,6 +701,56 @@ app.get("/home",authenticationMiddleware(),function(req,res,next)
 	});
 });
 
+app.get("/staticList",authenticationMiddleware(),function(req,res,) {
+	let userId = req.user.user_id;
+
+	db.query("SELECT type FROM users WHERE id=?", [userId], function(err, user) {
+		if(err) {
+			console.log("===Error occured while getting users type")
+			res.status(400).send({message: "Error"});
+		} else {
+			if(user) {
+				db.query("SELECT username FROM users WHERE type != ? AND id != ?", [user[0].type, userId], function(err, staticList) {
+					if(err) {
+						console.log("===Error occured while getting static list")
+						res.status(400).send({message: "Error"});
+					} else {
+						res.status(200).send(staticList)
+					}
+				})
+			} else {
+				res.status(400).send({message: "Error"});
+			}
+		}
+	})
+})
+
+app.get("/getChatHistory",authenticationMiddleware(),function(req,res,) {
+	let userId = req.user.user_id;
+	var chatWithUsername = req.query.username;
+
+	db.query("SELECT id, username from users where id=?",[userId], function(err, user) {
+		if(err) {
+			console.log("===Error occured while getting users")
+			res.status(400).send({message: "Error"});
+		} else {
+			db.query("SELECT id, username from users where username=?",[chatWithUsername], function(err,chatWithUser) {
+				if(err) {
+					console.log("===Error occured while getting chatWithUser")
+					res.status(400).send({message: "Error"});
+				} else {	
+					db.query("SELECT u1.username AS sourceUserName, c.message AS message, c.createdAt FROM chatHistory c INNER JOIN users u1 ON u1.id = c.sourceUserId  WHERE  c.sourceUserId in (?) and c.destUserId in (?) order by c.id desc", [[user[0]['id'],chatWithUser[0]['id']],[chatWithUser[0]['id'],user[0]['id']]], function(err, chatHistory) {
+						if(err) {
+							console.log("==Error occurred while fetching chat history: ",err)
+						} else {
+							res.status(200).send(chatHistory)
+						}
+					})
+				}
+			});
+		}
+	});
+})
 
 const port=process.env.PORT || 3000
 var server=app.listen(port,function()
@@ -740,88 +866,104 @@ var tempdata;
 
 	socket.on("private_chat",function(data)
 	{
-		//console.log("private_chat data is : "+JSON.stringify(data));
-		//io.sockets.emit("chat",data);
-		//tone analyzer function
-		//onlineusers[data.receiver].emit("private_chat",data);
-	
-		tempdata = data.message;
+		db.query("SELECT id, username from users where username=?",[data.sender], function(err, sourceUser) {
+			if(err) {
+				console.log("===Error occured while getting sender: ",err)
+			} else {
+				db.query("SELECT id, username from users where username=?",[data.receiver], function(err, destUser) {
+					if(err) {
+						console.log("===Error occured while getting receiver: ",err)
+					} else {
+						db.query("Insert into chatHistory (sourceUserId, destUserId, message) values (?,?,?)",[sourceUser[0].id, destUser[0].id, data.message], function(err, chatSaved) {
+							if(err) {
+								console.log("===Error occured while inserting chat message: ",err)
+							} else {
+								tempdata = data.message;
 		
-		const toneParams = {
-		  tone_input: { 'text': tempdata },
-		  content_type: 'application/json',
-		};
-
-		toneAnalyzer.tone(toneParams)
-		  .then(toneAnalysis => {
-		  	//console.log(JSON.stringify(toneAnalysis, null, 2));		  	
-		    var expression,obj,arrayofexpression,tone,sentenceform="";
-		  	if(!toneAnalysis.hasOwnProperty("sentences_tone"))
-		  	{
-		  		sentenceform = tempdata
-		  		obj = toneAnalysis["document_tone"];
-		  		arrayofexpression = obj["tones"];
-		  		if(arrayofexpression.length == 0)
-		  		{
-		  			sentenceform = sentenceform+ ":)";
-		  		}
-		  		else
-		  		{
-		  			
-			  		tone = arrayofexpression[0].tone_name;
-			  		sentenceform = detectexpression(sentenceform,tone);	
-		  		}
-		  	}
-		  	else
-		  	{
-		  		var arrayofObjectsofSentencesExpression = toneAnalysis.sentences_tone;
-		  	
-			  	for(let i=0;i<arrayofObjectsofSentencesExpression.length;i++)
-			  	{
-			  		//Joy Fear Polite Sad Sympathetic Analytical Sadness
-			  		obj = arrayofObjectsofSentencesExpression[i];
-			  		//console.log("each sentence info : "+JSON.stringify(obj));
-			  		if(sentenceform == "")
-			  		{
-			  			sentenceform = sentenceform+obj.text;	
-			  		}
-			  		else
-			  		{
-			  			sentenceform = sentenceform +"\n"+obj.text;
-			  		}
-			  		
-			  		arrayofexpression = obj.tones;
-			  		//console.log("arrayofexpression"+JSON.stringify(arrayofexpression));
-			  		if(arrayofexpression.length != 0)
-			  		{
-			  			tone = arrayofexpression[0].tone_name;
-				  		//console.log("tone of each sentence:"+JSON.stringify(tone));
-				  		//console.log("\n\n\n");
-				  		sentenceform = detectexpression(sentenceform,tone);			  			
-			  		}
-			  		else
-			  		{
-			  			expression = ":|";
-				  		sentenceform=sentenceform+expression;
-			  		}		  		
-			  	}	
-		  	}
-
-		  	console.log("sentence formed : "+sentenceform);
-		  	data.message = sentenceform;
-		  	onlineusers[data.receiver].emit("private_chat",data);		  		
-		  })
-		  .catch(err => {
-		    console.log('error:', err);
-		  	onlineusers[data.receiver].emit("private_chat",data);
-		  });
-
+					
+								const toneParams = {
+								tone_input: { 'text': tempdata },
+								content_type: 'application/json',
+								};
+						
+								toneAnalyzer.tone(toneParams)
+								.then(toneAnalysis => {
+									//console.log(JSON.stringify(toneAnalysis, null, 2));		  	
+									var expression,obj,arrayofexpression,tone,sentenceform="";
+									if(!toneAnalysis.hasOwnProperty("sentences_tone"))
+									{
+										sentenceform = tempdata
+										obj = toneAnalysis["document_tone"];
+										arrayofexpression = obj["tones"];
+										if(arrayofexpression.length == 0)
+										{
+											sentenceform = sentenceform+ ":)";
+										}
+										else
+										{
+											
+											tone = arrayofexpression[0].tone_name;
+											sentenceform = detectexpression(sentenceform,tone);	
+										}
+									}
+									else
+									{
+										var arrayofObjectsofSentencesExpression = toneAnalysis.sentences_tone;
+									
+										for(let i=0;i<arrayofObjectsofSentencesExpression.length;i++)
+										{
+											//Joy Fear Polite Sad Sympathetic Analytical Sadness
+											obj = arrayofObjectsofSentencesExpression[i];
+											//console.log("each sentence info : "+JSON.stringify(obj));
+											if(sentenceform == "")
+											{
+												sentenceform = sentenceform+obj.text;	
+											}
+											else
+											{
+												sentenceform = sentenceform +"\n"+obj.text;
+											}
+											
+											arrayofexpression = obj.tones;
+											//console.log("arrayofexpression"+JSON.stringify(arrayofexpression));
+											if(arrayofexpression.length != 0)
+											{
+												tone = arrayofexpression[0].tone_name;
+												//console.log("tone of each sentence:"+JSON.stringify(tone));
+												//console.log("\n\n\n");
+												sentenceform = detectexpression(sentenceform,tone);			  			
+											}
+											else
+											{
+												expression = ":|";
+												sentenceform=sentenceform+expression;
+											}		  		
+										}	
+									}
+						
+									console.log("sentence formed : "+sentenceform);
+									data.message = sentenceform;
+									if(Object.keys(onlineusers).includes(data.receiver)) {
+										onlineusers[data.receiver].emit("private_chat",data);
+									}		  		
+								})
+								.catch(err => {
+									console.log('error:', err);
+									if(Object.keys(onlineusers).includes(data.receiver)) {
+										onlineusers[data.receiver].emit("private_chat",data);
+									}		  		
+								});
+							}
+						})
+					}
+				})
+			}
+		})
 	});
 
 
 	socket.on("username",function(username)
 	{
-		console.log("name of user connected",username);
 		/*if(onlineusers.indexOf(username) == -1)
 		{
 			console.log("adding user to onlineusers array");
@@ -834,14 +976,12 @@ var tempdata;
 
 	function sendlistofonlineusers()
 	{
-		console.log("==hello: ",onlineusers);
 		io.sockets.emit("onlineusers",Object.keys(onlineusers));
 	}
 
 	
 	socket.on("disconnect",function()
 	{
-		console.log("name of user disconneted",socket.username);
 		//onlineusers.splice(onlineusers.indexOf(socket.username),1);
 		delete onlineusers[socket.username];
 		sendlistofonlineusers();
@@ -1099,4 +1239,68 @@ app.get("/confirmemail",function(req,res)
 		}		
 	})
 })
+
+//Change password from profile page
+app.put("/changePassword",authenticationMiddleware(),function(req,res,next) {
+	let userId = req.user.user_id;
+	let currentPassword = req.body.currentPassword;
+	let newPassword = req.body.newPassword;
+
+	//Get logged in user passoword from db
+	db.query("SELECT password from users where id=?",[userId], function(err,userPassowrd) {
+		if(err) {
+			console.log("===Error occurred while get user password: ",err)
+			res.status(400).send({message: "Error"})
+		} else {
+			if(userPassowrd[0] && userPassowrd[0][password]) {
+				/**
+				 * 1) Consider stored password is encrypted.
+				 * 2) Convert incoming current password into encrypted format using same key
+				 * 3) Compare encrypted formats of incoming current password with db password
+				 * 4) If matched, encrypt new password and update db with new password
+				 * 5) Return success
+				 */
+				res.status(200).send({message: "success"});
+			} else {
+				res.status(400).send({message: "Something went wrong"})
+			}
+		}
+	})
+})
+
+//Forget password request
+app.post("/forgotPassword",function(req,res,next) {
+	let userEmail = req.body.userEmail;
+
+	//Get user from db
+	db.query("SELECT * from users where email=?",[userEmail], function(err,userPassowrd) {
+		if(err) {
+			console.log("===Error occurred while get user with email: ",err)
+			res.status(400).send({message: "Error"})
+		} else {
+			/**
+			 * 1) Create hash using email and timestamp say emailHash
+			 * 2) send password reset link to the emailHash eg: http://localhost:3000/resetPassword?email=userHash
+			 * 3) On redirecting to link, user will get a form to reset password
+			 * 4) On sumbitting reset password, route /resetPassword will be hit
+			 */
+			 res.status(200).send({message: "success"});
+		}
+	})
+})
+
+//Reset password
+app.put("/resetPassword",function(req,res,next) {
+	let userNewPassword = req.body.newPassword;
+	let emailHash = req.body.emailHash;
+
+	/**
+	 * 1) Decrypt email hash using key to get email id and timestamp
+	 * 2) Check for link expiry using timestamp
+	 * 3) If link not expired update user with new password
+	 */
+
+	res.status(200).send({message: "Password reset was successful. Please login"})
+})
+
 

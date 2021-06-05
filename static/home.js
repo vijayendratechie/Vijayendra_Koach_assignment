@@ -107,7 +107,7 @@ $(document).ready(function()
 	socket.on("onlineusers",function(onlineusers)
 	{
 		var flag = 0;
-		if(onlineusers.length == 1)
+		/*if(onlineusers.length == 1)
 		{
 			$(".list-group").empty();
 			$(".output").empty();
@@ -117,8 +117,8 @@ $(document).ready(function()
 			notification = {};
 		}
 		else
-		{
-			$(".list-group").empty();
+		{*/
+			//$(".list-group").empty();
 			var tryid,keyarray;
 			keyarray = Object.keys(notification);
 			console.log("onlineusers : "+JSON.stringify(onlineusers));
@@ -143,7 +143,6 @@ $(document).ready(function()
 				}	
 			}
 
-
 			for(let i=0;i<onlineusers.length;i++)
 			{
 				if(onlineusers[i]!=username)
@@ -152,7 +151,8 @@ $(document).ready(function()
 					//console.log("online users:"+tryid);
 
 					//numberofonlineusers=numberofonlineusers+"<li class='list-group-item'><button class='btn btn-link'>"+onlineusers[i]+"</button></li>";	
-					$(".list-group").append("<li class='list-group-item' id='"+uniqueid+"'><button class='btn btn-link'>"+onlineusers[i]+"</button><div style='float:right'></div></li>")		
+					//$(".list-group").append("<li class='list-group-item' id='"+uniqueid+"'><button class='btn btn-link'>"+onlineusers[i]+"</button><div style='float:right'></div></li>")		
+					$('#'+uniqueid).css({"background-color":"#90EE90"});
 					create_notification();
 				}
 
@@ -161,17 +161,17 @@ $(document).ready(function()
 					flag=1;
 				}				
 			}
-			if(flag==0 && $("#chat-room").attr("name") != "chat-room")
+			/*if(flag==0 && $("#chat-room").attr("name") != "chat-room")
 			{
 				$(".output").empty();
 				$("#chat-username").html("<h3 id='chat-room' name='chat-room' style='padding-left: 20px'>User went offline.YOU are in a chat room</h3>");		
 				$("#send").attr("name","default");
-			}			
-		}
+			}*/			
+		//}
 
 		$(".list-group-item button").click(function()
 		{
-			//alert($(this).html());
+			alert($(this).html());
 			$("#"+$(this).html().trim()).find("div").empty();
 			$(".output").empty();
 			$("#chat-username").html("<h3 id='chat-room' name='"+$(this).html()+"' style='padding-left: 20px'>YOU are in a private chat with "+$(this).html()+"</h3>");
@@ -179,13 +179,62 @@ $(document).ready(function()
 
 			messagefocus();
 			//$("#kuku").find("div").html();
+			$.ajax({
+				type: "GET",
+				url: "http://localhost:3000/getChatHistory",
+				data: {username : $(this).html()},
+				success: function (chatHistory)
+				{   
+					for(let i=chatHistory.length-1;i>=0;i--)
+					{
+						chatMessages = $(".output").html()
+						$(".output").html(chatMessages+"<p><strong>"+chatHistory[i]['sourceUserName']+" : </strong>"+chatHistory[i]['message']+"</p>");
+					}
+				},
+				error: function(XMLHttpRequest, textStatus, errorThrown)
+				{
+					console.log('err: '+XMLHttpRequest.status);
+				}
+			});
 			if(notification.hasOwnProperty($(this).html()))
 			{
-				tempMessages = notification[$(this).html()];
-				$(".output").html(tempMessages);
+				//tempMessages = notification[$(this).html()];
+				//$(".output").html(tempMessages);
 				//console.log("Temp messages : "+JSON.stringify(tempMessages));
 				delete notification[$(this).html()];								
 			}
 		});			
-	});		
+	});	
+	
+	getStaticList(create_notification)
+
 });
+
+function getStaticList(create_notification) {
+	$.ajax({
+		type: "GET",
+		url: "http://localhost:3000/staticList",
+		success: function (staticList)
+		{   
+			for(let i=0;i<staticList.length;i++)
+			{
+				uniqueid = staticList[i]['username'];
+				//console.log("online users:"+tryid);
+
+				//numberofonlineusers=numberofonlineusers+"<li class='list-group-item'><button class='btn btn-link'>"+onlineusers[i]+"</button></li>";	
+				$(".list-group").append("<li class='list-group-item' id='"+uniqueid+"'><button class='btn btn-link'>"+uniqueid+"</button><div style='float:right'></div></li>")		
+				create_notification();
+		
+
+				/*if(onlineusers[i] == $("#chat-room").attr("name"))
+				{
+					flag=1;
+				}*/				
+			}
+		},
+		error: function(XMLHttpRequest, textStatus, errorThrown)
+		{
+			console.log('err: '+XMLHttpRequest.status);
+		}
+	});
+}

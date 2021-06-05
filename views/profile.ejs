@@ -37,24 +37,32 @@
 	</div>
 
 	<div class="login-form">
-	    <form name="profile" id="profile" align="center" method="post">
-	        <h2 class="text-center">Profile</h2>    
+	    <form name="profile" id="profile" align="center" method="post" enctype="multipart/form-data">
+	        <h2 class="text-center">Profile</h2>
+			<div class="form-group">
+				<img src="<%= info.userImageRef %>" alt="No Image Added" >
+			</div>  
+	        <div class="form-group">
+	            <input id="userImage" type="file" name="userImage" class="form-control">
+	        </div> 
 			<div class="form-group">
 				 <div class="row">
 				    <div class="col-sm-9">
 						<input id="username" type="text" name="username" class="form-control" value = "<%= info.username %>" placeholder="Username">    	
 				    </div>
-				    <div class="col-sm-3" style="align-self: center;">
+					<% /* %>
+				    <div class="col-sm-3" style="align-self: center;"> 
 						<button type="button" class="edit" id="username_edit" value="edit">edit</button>   	   
 				    </div>
+					<% */ %>
 				  </div>        
 	           <div><div id="username_message" name="username_message" style="margin-top: 6px" hidden></div></div>
 	        </div>
 	        <div class="form-group">
-	            <input id="name" type="text" name="name" class="form-control" value="<%= info.name %>" readonly>
+	            <input id="name" type="text" name="name" class="form-control" value="<%= info.name %>">
 	        </div>
 	        <div class="form-group">
-	            <input type="email" id="email" name="email" class="form-control" value="<%= info.email %>" readonly>
+	            <input type="email" id="email" name="email" class="form-control" value="<%= info.email %>">
 	        </div>
 	        <div class="form-group">
 	            <button type="button" id="validate" onclick="signup_valid()" class="btn btn-primary btn-block">Submit</button>

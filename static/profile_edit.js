@@ -1,9 +1,9 @@
 $(document).ready(function()
 {
-	$("#username").prop('readonly',true);
-	$("#name").prop('readonly',true);
+	$("#username").prop('readonly',false);
+	$("#name").prop('readonly',false);
 	$("#password").prop('readonly',true);
-	$("#email").prop('readonly',true);
+	$("#email").prop('readonly',false);
 	
 	
 
